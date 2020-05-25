@@ -1,0 +1,174 @@
+---
+title: "Call-wag syncing tatistical analysis dec-17"
+author: <a href="http://marceloarayasalas.weebly.com/">Marcelo Araya-Salas</a>
+ &nbsp; 
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+---
+
+```{r packages,message=FALSE,warning=FALSE,echo=FALSE, eval = T}
+rm(list = ls())
+
+x <- c("readxl", "warbleR")
+
+a <- lapply(x, function(y) {
+  if(!y %in% installed.packages()[,"Package"])  install.packages(y)
+require(y, character.only = T) 
+  })
+
+```
+
+
+```{r functions,message=FALSE,warning=FALSE,echo=FALSE, eval=TRUE}
+
+
+```
+
+# Descriptive stats 
+## LBH coor graphs
+
+```{r LBH coor graphs, message=FALSE,warning=FALSE,echo=FALSE, eval=TRUE}
+
+lbhfl <- list.files(path = "/home/m/Dropbox/Projects/Phethornis synchro/LBH_individual files")
+
+
+lbhid  <- sapply(strsplit(lbhfl, ".", fixed = T), "[", 1)
+
+# table(lbhid)
+
+out <- lapply(1:length(lbhfl), function(x) {
+  X <- read.csv(file.path(path = "/home/m/Dropbox/Projects/Phethornis synchro/LBH_individual files", lbhfl[x]))
+X$ID <- lbhid[x]
+X$file <- lbhfl[x]
+return(X)    
+  })
+
+# lapply(out, names)
+
+lbh.dat.2 <- lbh.dat <- do.call(rbind, out)
+
+lbh.dat.2$end <- lbh.dat.2$time + 0.15
+
+# head(lbh.dat.2)
+# 
+data(sim.coor.sing)
+# 
+# head(sim.coor.sing)
+
+names(lbh.dat.2)[c(5, 3, 1, 6)] <- names(sim.coor.sing)
+
+lbh.dat.2 <- lbh.dat.2[lbh.dat.2$indiv %in% 1:2,]
+
+source('~/Dropbox/warbleR/R/coor.graph.R')
+
+rslts <- NULL
+
+for(i in unique(lbh.dat.2$sing.event))
+rslts[length(rslts) + 1]<-try(coor.graph(lbh.dat.2[lbh.dat.2$sing.event == i,], it = "tiff", img = F, pb = F), silent = T)
+
+
+rslts <- rslts[sapply(rslts, function(x) class(x[1]) != "character")]
+
+rslts
+```
+
+### Gaps
+
+```{r LBH gaps, message=FALSE,warning=FALSE,echo=FALSE, eval= T}
+
+names(lbh.dat)
+
+out <- lapply(unique(lbh.dat$file), function(x)
+{
+  Y <- lbh.dat[lbh.dat$file == x,]
+Y <- Y[order(Y$time),]
+  
+  # remove observations during confouding factors (3 s before and after)  
+  ## substract 3 s to start
+  Y$time[Y$class == 3 & grepl("start",Y$code)] <- Y$time[Y$class == 3 & grepl("start",Y$code)] - 3
+
+    ## add 3 s to end
+  Y$time[Y$class == 3 & grepl("end",Y$code)] <- Y$time[Y$class == 3 & grepl("end",Y$code)] + 3
+
+
+  ## remove the ones in between confounding factors
+  strts <- Y$time[which(Y$class == 3 & grepl("start",Y$code))]
+  nds <- Y$time[which(Y$class == 3 & grepl("end",Y$code))]
+  if(length(nds) < length(strts)) nds <- c(nds, Y$time[nrow(Y)])
+  
+  
+    for(i in 1:length(strts))
+      Y <- Y[Y$time < strts[i] | Y$time > nds[i],]
+  
+  return(Y)
+  
+  }
+)
+
+out <- out[sapply(out, nrow) > 10]
+
+out2 <- lapply(out, function(X){
+  X <- X[X$class %in% 1:2,]
+
+  cll <- X[X$class == 1,]
+  wg <- X[X$class == 2,]
+
+  cll.gp <-  cll$time[2:nrow(cll)] - cll$time[1:(nrow(cll) - 1)]
+  wg.gp <-  wg$time[2:nrow(wg)] - wg$time[1:(nrow(wg) - 1)]
+
+  # remove longer gaps
+  qnt.cll <- quantile(cll.gp, c(0.05, 0.95))
+  cll.gp <- cll.gp[cll.gp > qnt.cll[1] & cll.gp < qnt.cll[2]]
+  
+  qnt.wg <- quantile(wg.gp, c(0.05, 0.95))
+  wg.gp <- wg.gp[wg.gp > qnt.wg[1] & wg.gp < qnt.wg[2]]
+  
+  return(list(cll.gp, wg.gp))
+     
+}
+  )
+
+lapply(out2, function(x) sapply(x, mean))
+
+sapply(out2, function(x) mean(x[[2]])/mean(x[[1]]))
+
+mean(sapply(out2, function(x) mean(x[[2]])/mean(x[[1]])))
+
+
+
+
+```
+
+
+
+
+## WWH
+
+```{r WWH coor graphs, message=FALSE,warning=FALSE,echo=FALSE, eval= FALSE}
+
+wwhfl <- list.files(path = "/home/m/Dropbox/Projects/Phethornis synchro/WWH_individual files/")
+
+wwhid  <- sapply(strsplit(wwhfl, ".", fixed = T), "[", 1)
+
+table(wwhid)
+
+xlf <- readxl::read_excel("/home/m/Dropbox/Projects/Phethornis synchro/WWH_rec_files.xlsx")
+
+wwhid  <- sapply(strsplit(xlf$Idrec_sub, "_", fixed = T), "[", 2)
+
+
+View(cbind(xlf$Idrec_sub, wwhid))
+
+length(unique(wwhid))
+
+length(unique(lbhid))
+
+table(wwhid)
+
+```
+

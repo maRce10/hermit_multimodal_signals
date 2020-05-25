@@ -1,0 +1,27 @@
+time,code,class
+0.501,voice_start,1
+1.179,voice_start,1
+1.702,voice_start,1
+6.841,voice_start,1
+8.282,voice_start,1
+8.809,voice_start,1
+9.819,voice_start,1
+10.344,voice_start,1
+10.778,voice_start,1
+11.278,voice_start,1
+12.046,voice_start,1
+0.411,tail_up,2
+0.667,tail_up,2
+0.935,tail_up,2
+1.179,tail_up,2
+1.435,tail_up,2
+1.702,tail_up,2
+1.968,tail_up,2
+2.203,tail_up,2
+2.544,tail_up,2
+2.736,tail_up,2
+2.843,confounding behav start,3
+3.537, confounding behav end,3
+3.704,interaction start,4
+14.281, interaction end,4
+14.915,END,0

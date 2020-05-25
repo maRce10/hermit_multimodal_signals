@@ -1,0 +1,50 @@
+time,code,class
+0.666,confounding behav start,3
+6.874, confounding behav end,3
+3.504,interaction start,4
+6.841, interaction end,4
+6.874,voice_start,1
+7.541,voice_start,1
+8.142,voice_start,1
+8.742,voice_start,1
+9.343,voice_start,1
+9.944,voice_start,1
+10.544,voice_start,1
+11.311,voice_start,1
+12.079,voice_start,1
+12.846,voice_start,1
+13.614,voice_start,1
+14.381,voice_start,1
+15.149,voice_start,1
+15.849,voice_start,1
+16.183,confounding behav start,3
+16.784, confounding behav end,3
+8.944,tail_up,2
+9.209,tail_up,2
+9.476,tail_up,2
+9.713,tail_up,2
+9.977,tail_up,2
+10.244,tail_up,2
+10.48,tail_up,2
+10.744,tail_up,2
+11.011,tail_up,2
+11.345,tail_up,2
+11.611,tail_up,2
+11.845,tail_up,2
+12.112,tail_up,2
+12.379,tail_up,2
+12.613,tail_up,2
+12.88,tail_up,2
+13.147,tail_up,2
+13.48,tail_up,2
+13.723,tail_up,2
+13.981,tail_up,2
+14.248,tail_up,2
+14.49,tail_up,2
+14.748,tail_up,2
+15.015,tail_up,2
+15.349,tail_up,2
+15.616,tail_up,2
+15.856,tail_up,2
+16.183,tail_up,2
+18.352,END,0

@@ -1,0 +1,32 @@
+time,code,class
+0.434,voice_start,1
+1.135,voice_start,1
+0.367,tail_up,2
+0.603,tail_up,2
+0.868,tail_up,2
+1.135,tail_up,2
+1.468,tail_up,2
+1.712,tail_up,2
+1.902,tail_up,2
+2.309,tail_up,2
+6.149,tail_up,2
+6.34,tail_up,2
+8.375,tail_up,2
+8.542,tail_up,2
+8.809,tail_up,2
+9.051,tail_up,2
+9.31,tail_up,2
+9.577,tail_up,2
+9.819,tail_up,2
+10.077,tail_up,2
+10.344,tail_up,2
+10.587,tail_up,2
+10.778,tail_up,2
+11.013,tail_up,2
+11.278,tail_up,2
+11.545,tail_up,2
+11.781,tail_up,2
+11.952,tail_up,2
+2.403,interaction start,4
+12.946, interaction end,4
+13.474,END,0

@@ -1,0 +1,38 @@
+{
+ "name": "Coord",
+ "dataDirectory": "C:\\Users\\KWJ\\Dropbox\\Phethornis synchro",
+ "author": "KWJ",
+ "email": "",
+ "videoplayer": "vlc",
+ "nClasses": 5,
+ "modifiers": false,
+ "codes": [
+  "voice_start",
+  "tail_up",
+  "confounding behav start, confounding behav end",
+  "interaction start, interaction end",
+  "video disturbace start, video disturbace end"
+ ],
+ "codeArray": [
+  [
+   "voice_start"
+  ],
+  [
+   "tail_up"
+  ],
+  [
+   "confounding behav start",
+   " confounding behav end"
+  ],
+  [
+   "interaction start",
+   " interaction end"
+  ],
+  [
+   "video disturbace start",
+   " video disturbace end"
+  ]
+ ],
+ "keyCodes": [],
+ "modifiedCodes": null
+}

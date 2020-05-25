@@ -1,0 +1,777 @@
+---
+title: <center><font size="7"><b>Data exploration</b></font></center>
+subtitle: <center><font size="4"><b>Singing-wagging synchronization</b></font></center>
+author: <center><font size="4"><a href="http://marceloarayasalas.weebly.com/">Marcelo Araya-Salas, PhD</a></font></center>
+#date: <center>`r format(Sys.Date(), "%d-%m-%Y")`</center>
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+    
+fontsize: 12pt 
+---
+
+```{r packages,message=FALSE,warning=FALSE, echo=FALSE, eval = T, include=F}
+
+rm(list = ls())
+
+# unload all non-based packages
+out <- sapply(paste('package:', names(sessionInfo()$otherPkgs), sep = ""), function(x) try(detach(x, unload = FALSE, character.only = TRUE), silent = T))
+
+x <- c("ggplot2", "RColorBrewer", "readxl", "kableExtra", "knitr", "dplyr", "parallel", "pbapply", "dtw", "metap", "warbleR")
+
+aa <- lapply(x, function(y) {
+  if(!y %in% installed.packages()[,"Package"])  {if(!y %in% c("warbleR", "Rraven")) install.packages(y) else devtools::install_github(paste0("maRce10/", y))
+}
+try(require(y, character.only = T), silent = T)
+  })
+
+options("digits" = 3, "digits.secs" = 3, knitr.table.format = "html") 
+
+```
+
+```{r functions and parameters, message=FALSE,warning=FALSE,echo=FALSE, eval=T}
+
+range01 <- function(x){(x-min(x))/(max(x)-min(x))}
+```
+
+```{r read data, eval = F, echo = F}
+
+lbh <- read_excel("/home/m/Dropbox/Projects/Phethornis synchro/Predata/LBH_rec_files.xlsx")
+wwh1 <- read_excel("/home/m/Dropbox/Projects/Phethornis synchro/Predata/WWH_rec_files_p1.xlsx")
+wwh2 <- read_excel("/home/m/Dropbox/Projects/Phethornis synchro/Predata/WWH_rec_files_p2.xlsx")
+
+# To check two sets of WWH for doble ind
+# rw1 <- unique(wwh1$BirdRing)
+# rw2 <- unique(wwh2$BirdRing)
+# intersect(rw1, rw2)
+
+
+# Little adjustment of three data sets
+nwwh1 <- nrow(wwh1)
+wwh1 <- wwh1 %>% 
+  select(Idrec_sub, Id_cowlog, Lek, BirdRing, Date) %>%
+  rename(BirdID = BirdRing) %>%
+  mutate(Species = rep("WWH", nwwh1))
+
+nwwh2 <- nrow(wwh2)
+wwh2 <- wwh2 %>% 
+  select(Idrec_sub, Id_cowlog, Lek, BirdRing, Date)%>%
+  rename(BirdID = BirdRing) %>%
+  mutate(Species = rep("WWH", nwwh2))
+
+lhb <- nrow(lbh)
+lbh <- lbh %>% select(RecID, CowlogFile, Lek, BirdID, Date) %>%
+  rename("Idrec_sub" = RecID , "Id_cowlog" :=  CowlogFile ) %>%
+  mutate(Species = rep("LBH", lhb))
+
+
+all <- rbind(lbh, wwh1, wwh2)
+# write.csv(file = "recfiles_descr.csv", all)
+```
+
+```{r, eval = F, echo = F}
+#################
+# Quick summary
+#################
+
+# Total n clips
+tb <- table(all$BirdID)
+sum(tb)
+
+# N clips per ind
+range(tb)
+mean(tb)
+
+# N inds0 screened
+all %>% group_by(Species, BirdID) %>% summarise (n = n()) %>% 
+  group_by(Species) %>% summarise (n = n())
+
+
+```
+
+```{r read all log files, eval = F, echo = F}
+
+# LBH
+lbh <- list.files(path = "/home/m/Dropbox/Projects/Phethornis synchro/LBH_individual files/", pattern = "\\.csv$", full.names = TRUE)
+
+lbhl <- pblapply(lbh, read.csv)
+
+
+lbhl <- pblapply(1:length(lbhl), function(x) {X <- lbhl[[x]]
+                 X$file <- basename(lbh[x])
+                 return(X)
+                 })
+
+lbh <- do.call(rbind, lbhl)
+
+lbh <- lbh[order(lbh$file, lbh$time), ]
+
+lbh$species <- "Phaethornis longirostris"
+
+## 
+wwh1 <- list.files(path = "/home/m/Dropbox/Projects/Phethornis synchro/WWH_individual files_p1/", pattern = "\\.csv$", full.names = TRUE)
+
+wwh2 <- list.files(path = "/home/m/Dropbox/Projects/Phethornis synchro/WWW_individual files_p2/", pattern = "\\.csv$", full.names = TRUE)
+
+wwh <- c(wwh1, wwh2)
+
+any(duplicated(basename(wwh)))
+
+wwhl <- pblapply(wwh, read.csv)
+
+
+wwhl <- pblapply(1:length(wwhl), function(x) {X <- wwhl[[x]]
+                 X$file <- basename(wwh[x])
+                 return(X)
+                 })
+
+wwh <- do.call(rbind, wwhl)
+
+wwh <- wwh[order(wwh$file, wwh$time), ]
+
+wwh$species <- "Phaethornis yaruqui"
+
+dat <- rbind(wwh, lbh)
+
+dat <- dat[,  c("species", "file", "class", "code", "time")]
+
+write.csv(dat, "wagging-singing raw data LBH-WWH.csv", row.names = FALSE)
+
+```
+
+```{r get rates, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+dat <- read.csv("wagging-singing raw data LBH-WWH.csv", stringsAsFactors = FALSE)
+
+# set values for plot
+dat$ymin <- NA
+dat$ymax <- NA
+dat$ymin[grep("voice", dat$code, ignore.case = TRUE)] <- 1.4
+dat$ymax[grep("voice", dat$code, ignore.case = TRUE)] <- 1.7
+dat$ymin[grep("voice", dat$code, ignore.case = TRUE, invert = TRUE)] <- 0.8
+dat$ymax[grep("voice", dat$code, ignore.case = TRUE, invert = TRUE)] <- 1.1
+
+dat$ymax[grep("voice|tail", dat$code, ignore.case = TRUE, invert = T)] <- 1.7
+
+dat$xmin <- NA
+dat$xmax <- NA
+
+dat$xmin[grep("voice", dat$code, ignore.case = TRUE)] <- dat$time[grep("voice", dat$code, ignore.case = TRUE)] 
+dat$xmax[grep("voice", dat$code, ignore.case = TRUE)] <- dat$time[grep("voice", dat$code, ignore.case = TRUE)] + 0.15 
+dat$xmin[grep("voice", dat$code, ignore.case = TRUE, invert = TRUE)] <- dat$time[grep("voice", dat$code, ignore.case = TRUE, invert = TRUE)] - 0.02
+dat$xmax[grep("voice", dat$code, ignore.case = TRUE, invert = TRUE)] <- dat$time[grep("voice", dat$code, ignore.case = TRUE, invert = TRUE)] + 0.02
+
+dat$code <- gsub("disturbace", "disturbance", dat$code)
+dat$code <- gsub("^ | $", "", dat$code)
+
+dstrb.strt <- which(dat$code == "video disturbance start")
+dstrb.nd <- which(dat$code == "video disturbance end")
+
+for(i in 1:length(dstrb.strt))
+{
+  dat$xmax[dstrb.strt[i]] <- dat$xmax[dstrb.nd[dstrb.nd > dstrb.strt[i]][1]]
+}
+
+cnfd.strt <- which(dat$code == "confounding behav start")
+cnfd.nd <- which(dat$code == "confounding behav end")
+
+for(i in 1:length(cnfd.strt))
+{
+  dat$xmax[cnfd.strt[i]] <- dat$xmax[cnfd.nd[cnfd.nd > cnfd.strt[i]][1]]
+}
+
+intr.strt <- which(dat$code == "interaction start")
+intr.nd <- which(dat$code == "interaction end")
+
+for(i in 1:length(intr.strt))
+{
+  dat$xmax[intr.strt[i]] <- dat$xmax[intr.nd[intr.nd > intr.strt[i]][1]]
+}
+
+
+dat <- dat[-c(dstrb.nd, cnfd.nd, intr.nd), ]
+
+dat <- dat[dat$code != "END", ]
+
+dat$code <- gsub(" start", "", dat$code)
+
+dat$code[dat$code == "voice_start"] <- "song"
+dat$code[dat$code == "tail_up"] <- "wag"
+
+
+window.size <- 8
+
+#overlap in percentage
+overlap <- 50
+
+# raw rates
+raw.rts.l <- pblapply(unique(dat$file), cl = detectCores() - 1, function(x){
+  
+  X <- dat[dat$file == x, ]
+  
+  X$code <- factor(X$code, levels = c("song", "wag", "confounding behav", "video disturbance", "interaction", ""))
+  
+ tm.rng <- range(X$time)
+  
+  sq <- sort(unique(c(seq(tm.rng[1], tm.rng[2], by = window.size * overlap/100), tm.rng)))
+  
+  out2 <- lapply(sq, function(y){
+    
+    Y <- X[X$time >= y & X$time <= y + window.size, ]
+
+      dur <- ifelse(y + window.size > max(X$time), max(Y$time) - y, window.size)
+      
+    if (nrow(Y) > 0)
+{   
+  return(data.frame(code = c("song", "wag"),time = y + (dur / 2), rate = c(length(which(Y$code == "song"))/ dur, length(which(Y$code == "wag")) / dur)))
+} else 
+  return(data.frame(code = c("song", "wag"),time = y + (y + dur) / 2, rate = c(length(which(Y$code == "song"))/ dur, length(which(Y$code == "wag")) / dur)))
+    })
+
+  
+  raw.rts <- do.call(rbind, out2[-length(out2)])  
+  
+  raw.rts$species <- X$species[1]
+  
+  raw.rts$file <- X$file[1]
+  
+  return(raw.rts)
+  })
+
+raw.rates <- do.call(rbind, raw.rts.l)
+
+# spline rates
+rts.l <- pblapply(raw.rts.l, cl = detectCores() - 1, function(x){
+  
+  df.song <- data.frame(spline(x = x$time[x$code == "song"], y = x$rate[x$code == "song"], n = round((max(x$time) - min(x$time))/2)))
+  
+  df.song$code <- "song"
+  
+  df.wag <- data.frame(spline(x = x$time[x$code == "wag"], y = x$rate[x$code == "wag"], n = round((max(x$time) - min(x$time))/2)))
+  
+  df.wag$code <- "wag"
+  
+  rts <- rbind(df.wag, df.song)
+  
+  names(rts)[1:2] <- c("time", "rate")
+  
+  rts$rate <- ifelse(rts$rate < 0, 0 , rts$rate)
+  
+  rts$species <- X$species[1]
+  
+  rts$file <- X$file[1]
+  
+  return(rts)
+  })
+
+rates <- do.call(rbind, rts.l)
+
+cols <- brewer.pal(8, "Spectral")
+
+rates$cols <- dat$cols <- adjustcolor("gray", 0.2)
+rates$cols[rates$code == "wag"] <- dat$cols[dat$code == "wag"] <-  cols[8]
+rates$cols[rates$code == "song"] <- dat$cols[dat$code == "song"] <-  cols[6]
+
+```
+
+```{r get cured segments, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+buffer <- 3
+cut.dur <- 20
+
+# add  buffer to each disturbance
+if (is.null(dat$code.type))
+dat$code.type <- ifelse(grepl("song|wag", dat$code), "target", "undesired")
+
+if (is.null(dat$start))
+dat$start <- ifelse(dat$code.type == "undesired", dat$xmin - buffer, dat$xmin)
+
+if (is.null(dat$end))
+dat$end <- ifelse(dat$code.type == "undesired", dat$xmax + buffer, dat$xmax)
+
+dat.cuts <- pblapply(unique(dat$file), cl = detectCores() - 1, function(x)
+{
+  X <- dat[dat$file == x, ]
+   X <- X[order(X$time), ]
+  
+  if (any(X$code.type == "undesired"))
+  cuts <- data.frame(X[1, grep("start|end", names(X), invert = TRUE)], start = c(0, X$xmax[X$code.type == "undesired"]), end = c(X$xmin[X$code.type == "undesired"], max(X$xmax)), cut = NA,  row.names = NULL) else 
+                           cuts <- data.frame(X[1, grep("start|end", names(X), invert = TRUE)], start = 0, end = 
+                       max(X$xmax), cut = NA)
+
+  # keep segments higher than 10 s
+  cuts <- cuts[cuts$end - cuts$start >= cut.dur, ]  
+  
+  try( cuts$cut <- 1:nrow(cuts), silent = TRUE)
+  return(cuts)
+  }
+)
+
+
+dat.cuts <- dat.cuts[sapply(dat.cuts, nrow)  > 0]
+
+dat.cuts <- do.call(rbind, dat.cuts)
+dat.cuts <- droplevels(dat.cuts)
+
+dat.cuts$file.cut <- paste(dat.cuts$file, dat.cuts$cut, sep = "-")
+
+# table(table(dat.cuts$file))
+# nrow(dat.cuts)
+
+# add metadata
+cured.dat <- pblapply(1:nrow(dat.cuts), cl = detectCores() - 1, function(x)
+{
+  X <- dat[dat$file == dat.cuts$file[x] & dat$start >= dat.cuts$start[x] & dat$end <= dat.cuts$end[x], ]
+  X$cut <- dat.cuts$cut[x]
+   X <- X[order(X$time), ] 
+  return(X)
+  }
+  )
+
+cured.dat <- do.call(rbind, cured.dat)
+
+cured.dat <- cured.dat[cured.dat$code.type == "target", names(cured.dat) %in% c("species", "file", "code", "time", "start", "end", "cut")]
+
+cured.dat$file.cut <- paste(cured.dat$file, cured.dat$cut, sep = "-")
+
+write.csv(cured.dat, paste0("cured_data_buffer-", buffer, "s_cut_duration-", cut.dur, "s.csv"), row.names = FALSE)
+
+write.csv(dat.cuts, paste0("cut_time_ranges-", buffer, "s_cut_duration-", cut.dur, "s.csv"), row.names = FALSE)
+
+```
+
+```{r get rates from cured segments, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+cured.dat <- read.csv("cured_data_buffer-3s_cut_duration-20s.csv", stringsAsFactors = FALSE)
+
+dat.cuts <- read.csv("cut_time_ranges-3s_cut_duration-20s.csv", stringsAsFactors = FALSE)
+
+window.size <- 4
+overlap <- 60
+rate.cut.off <- 0.4
+
+# raw rates
+raw.rts.l <- pblapply(unique(cured.dat$file.cut), cl = detectCores() - 1, function(x){
+  
+  X <- cured.dat[cured.dat$file.cut == x, ]
+  
+  X <- X[order(X$time), ]
+
+  X <- X[c(X$time[2:nrow(X)] - X$time[1:(nrow(X) - 1)] < window.size, TRUE), ]
+
+  tm.rng <- c(min(dat.cuts$start[dat.cuts$file.cut == x]), max(dat.cuts$end[dat.cuts$file.cut == x]))
+  
+  sq <- sort(unique(c(seq(tm.rng[1], tm.rng[2], by = window.size * (100 - overlap)/100), tm.rng)))
+  
+  out2 <- lapply(sq, function(y){
+    
+    Y <- X[X$time >= y & X$time <= y + window.size, ]
+
+    dur <- ifelse(y + window.size > max(tm.rng), max(tm.rng) - y, window.size)
+      
+    if (nrow(Y) > 0)
+  df <- data.frame(code = c("song", "wag"),time = y + (dur / 2), rate = c(length(which(Y$code == "song"))/ dur, length(which(Y$code == "wag")) / dur)) else
+  df <- data.frame(code = c("song", "wag"),time = y + (dur / 2), rate = c(length(which(Y$code == "song"))/ dur, length(which(Y$code == "wag")) / dur))
+  
+    return(df)  
+  })
+
+  raw.rts <- do.call(rbind, out2[-length(out2)])  
+  
+  raw.rts$species <- X$species[1]
+  
+  raw.rts$file <- X$file[1]
+  
+  raw.rts$file.cut <- X$file.cut[1]
+  
+  #remove the first rows if rate <= rate.cut.off
+  w <- nrow(raw.rts) - 1
+  while(raw.rts$rate[w] < rate.cut.off | raw.rts$rate[w + 1] < rate.cut.off)
+  {
+      raw.rts <- raw.rts[1:(w - 1), ]
+      w <- w - 2
+    if(w <= 0) break
+  }
+  
+  #remove the first rows if rate <= rate.cut.off
+  w <- 1
+  while(raw.rts$rate[w] < rate.cut.off | raw.rts$rate[w + 1] < rate.cut.off)
+  {
+      raw.rts <- raw.rts[(w + 1):nrow(raw.rts), ]
+      # w <- w + 2
+    if(nrow(raw.rts) < 4) break
+  }
+  
+  # remove the ones with less than 10 measures
+  if(nrow(raw.rts) < 10) raw.rts <- NA
+  
+  if(is.data.frame(raw.rts)) raw.rts$time <- raw.rts$time - min(raw.rts$time) 
+    
+  return(raw.rts)
+  })
+
+names(raw.rts.l) <- unique(cured.dat$file.cut)
+
+raw.rts.l <- raw.rts.l[sapply(raw.rts.l, is.data.frame)]
+
+raw.rates <- do.call(rbind, raw.rts.l)
+
+raw.rates.30.rows <- raw.rates[ raw.rates$file.cut %in%  names(table(raw.rates$file.cut)[table(raw.rates$file.cut) > 30]), ]
+
+unique(raw.rates.30.rows$file.cut)
+# create 20 rows segments
+# sgmt.size <- 40
+# 
+# raw.20.sgmts <- pblapply(raw.rts.l, cl = detectCores() - 1, function(X){
+#   
+#   if(nrow(X) < 20) out <- NA else {
+#     
+#     sgmt <- rep(seq(from = 1, to = floor(nrow(X) / sgmt.size), by = 1), each = sgmt.size)
+#     sgmt2 <- rep(seq(from = 1, to = floor(nrow(X) / sgmt.size * 2), by = 1), each = sgmt.size)[1:length(sgmt)]
+#     X$sgmt <- NA
+#     X$sgmt[1:length(sgmt)] <- sgmt  
+#     X <- X[!is.na(X$sgmt), ]
+#     X$file.cut.sgmt <- paste0(X$file.cut, "-", X$sgmt)
+#     
+#     #remove each 20
+#     X <- X[sgmt2 %% 2 != 0,]
+#     out <- split(X, f = X$file.cut.sgmt)
+#     out <- lapply(out, function(x) {
+#       x$time <- x$time - min(x$time)
+#       return(x)
+#     })
+#   }
+#   return(out)
+# })
+# 
+# raw.20.sgmts <- raw.20.sgmts[sapply(raw.20.sgmts, is.list)]
+# 
+# raw.20.sgmts <- do.call(c, raw.20.sgmts)
+# 
+# raw.20.sgmts <- do.call(rbind, raw.20.sgmts)
+# 
+# #save data
+# write.csv(raw.20.sgmts, paste0("raw_rates_", sgmt.size, "-points_segments.csv"), row.names = FALSE)
+
+write.csv(raw.rates, paste0("raw_rates-window_size-", window.size, "_overlap-", overlap, ".csv"), row.names = FALSE)
+
+write.csv(raw.rates.30.rows, paste0("raw_rates-window_size-30_rows-", window.size, "_overlap-", overlap, ".csv"), row.names = FALSE)
+
+```
+
+```{r plot spline rates and events, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+out3 <- sapply(unique(rates$file), function(x)
+  {
+  rates2 <- rates[rates$file == x, ]
+  dat2 <- dat[dat$file == x, ]
+
+    rates2$rate[rates2$code == "wag"] <- (range01(rates2$rate[rates2$code == "wag"] ) * (1.1 - 0.8)) + 0.8
+    
+    rates2$rate[rates2$code == "song"] <- (range01(rates2$rate[rates2$code == "song"] ) * (1.7 - 1.4)) + 1.4
+    
+    
+    brks <- seq(0, ceiling(max(rates2$time)/20) * 20, by = 20)
+    
+    # add data to get fix ranges
+    extr.dat2 <- data.frame(species = dat$species[1], file = dat$file[1], class  = dat$class[1],  code = "", time = brks, ymin = 1, ymax = 1.001, xmin = brks, xmax = brks + 0.001, cols = adjustcolor("white", alpha.f = 0))
+    
+    dat2 <- rbind(dat2, extr.dat2)
+    
+    rates2$time.cat <- cut(rates2$time, brks, include.lowest = TRUE)
+    dat2$time.cat <- cut(dat2$time, brks, include.lowest = TRUE)
+   
+    options(warn = -1)
+ 
+ggp <- ggplot(dat2, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, group = code, fill = cols)) + 
+    scale_x_continuous("Time (s)") +
+        scale_y_continuous(name = NULL, breaks= c(0.95, 1.55), labels = c("tail wag", "song")) +
+    # scale_fill_manual(values = cols[c(9, 3, 1, 8, 6, 5)][1:(length(unique(dat2$code)) + 1)]) +
+    # scale_color_manual(values = cols[c(3, 8)]) +
+    theme_classic(base_size = 19) +
+    theme(legend.position="none") + 
+    ggtitle(paste(dat2$species, " ", dat2$file)) +
+    geom_point(data = rates2, aes(x = time, y = rate, xmin = NULL, xmax = NULL, ymin = NULL, ymax = NULL, col = cols)) +
+    geom_line(data = rates2, aes(x = time, y = rate, xmin = NULL, xmax = NULL, ymin = NULL, ymax = NULL, col = NULL, linetype = code), size = 1.2) + 
+     geom_rect() +
+    facet_wrap(~time.cat, ncol = 1, scales = "free_x")
+    
+    
+      ggsave(plot = ggp, width = 50, height = 10 * length(unique(dat2$time.cat)), units = "cm", filename = file.path("/home/m/Dropbox/Projects/Phethornis synchro/plots", paste0(as.character(gsub("\\.csv", "", dat2$file[1])), ".jpeg")), dpi = 150, limitsize = FALSE)
+  })
+  
+# clip target events close to undesired events
+
+
+# remove other events
+
+
+```
+
+```{r plot raw rates including disturbance,  message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+# rates and target/undesired events
+raw.rates$sp.file <- paste0(raw.rates$species,"-", raw.rates$file)
+lun <- length(unique(raw.rates$sp.file))
+
+lunsq <- seq(1, lun, by = 9)
+
+out3 <- sapply(lunsq, function(x)
+  {
+  rates2 <-raw.rates[raw.rates$sp.file %in% na.omit(unique(raw.rates$sp.file)[x : (x+9)]), ]
+
+ggplot(rates2, aes(x = time, y = rate)) + 
+    theme_classic(base_size = 19) +
+    theme(legend.position="none") + 
+    ggtitle(paste(dat2$species, " ", dat2$file)) +
+    geom_point(data = rates2, aes(x = time, y = rate, xmin = NULL, xmax = NULL, ymin = NULL, ymax = NULL, col = code)) + 
+  ylim(c(0.5, 4.5)) +
+  labs(y = "rate (4 s)") +
+  geom_line(data = rates2, aes(x = time, y = rate, xmin = NULL, xmax = NULL, ymin = NULL, ymax = NULL, col = code, linetype = code), size = 1.2) +
+    facet_wrap( ~ sp.file, ncol = 1)
+    
+    
+      ggsave(width = 30, height = 7 * length(unique(rates2$file)), units = "cm", filename = file.path("/home/m/Dropbox/Projects/Phethornis synchro/plots", paste0("raw_rates_",((x -1)/9) + 1, ".jpeg")), dpi = 150, limitsize = FALSE)
+  })
+  
+
+
+```
+
+```{r plot raw rates excluding disturbance, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+raw.rates <- read.csv("raw_rates-window_size-4_overlap-50.csv", stringsAsFactors = FALSE)
+
+raw.rates$species <- ifelse(grepl("yaruqui",raw.rates$species), "WWH", "LBH")
+
+raw.rates$sp.file <- paste0(raw.rates$species,"-", raw.rates$file.cut)
+
+# set number of plots per image
+lun <- length(unique(raw.rates$sp.file))
+
+# pannels per plot
+ppp <- 20
+lunsq <- seq(1, lun, by = ppp)
+
+sp.file.length <- tapply(raw.rates$time, raw.rates$sp.file, length)
+
+raw.rates$sp.file <- factor(raw.rates$sp.file, levels = names(sp.file.length)[order(sp.file.length)])
+
+
+out <- sapply(lunsq, function(x)
+  {
+  X <-raw.rates[raw.rates$sp.file %in% na.omit(unique(raw.rates$sp.file)[x : (x - 1 + ppp)]), ]
+
+ggplot(X, aes(x = time, y = rate)) + 
+    theme_classic(base_size = 14) +
+    theme(legend.position="none") + 
+  ylim(c(0, 4.5)) +
+  labs(y = "rate (4 s)") +
+  geom_line(data = X, aes(x = time, y = rate, col = code), size = 1.2) +
+  geom_hline(yintercept = 0.4, linetype = 1) +  
+  facet_wrap( ~ sp.file, ncol = 4)
+    
+    ggsave(width = 45, height = 1.2 * length(unique(X$file.cut)), units = "cm", filename = file.path("/home/m/Dropbox/Projects/Phethornis synchro/plots", paste0("raw_rates_segments_",((x - 1) / ppp) + 1, ".jpeg")), dpi = 150, limitsize = FALSE)
+  }
+)
+
+```
+
+```{r plot 20 s segments, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+raw.points <- read.csv("raw_rates_20-points_segments.csv", stringsAsFactors = FALSE)
+
+raw.points$species <- ifelse(grepl("yaruqui",raw.points$species), "WWH", "LBH")
+
+raw.points$sp.file <- paste0(raw.points$species,"-", raw.points$file.cut.sgmt)
+
+# set number of plots per image
+lun <- length(unique(raw.points$sp.file))
+
+# pannels per plot
+ppp <- 20
+lunsq <- seq(1, lun, by = ppp)
+
+
+out <- sapply(lunsq, function(x)
+  {
+  X <- raw.points[raw.points$sp.file %in% na.omit(unique(raw.points$sp.file)[x : (x - 1 + ppp)]), ]
+
+ggplot(X, aes(x = time, y = rate)) + 
+    theme_classic(base_size = 14) +
+    theme(legend.position="none") + 
+  ylim(c(0, 4.5)) +
+  labs(y = "rate (4 s)") +
+  geom_line(data = X, aes(x = time, y = rate, col = code), size = 1.2) +
+  geom_hline(yintercept = 0.4, linetype = 1) +  
+  facet_wrap( ~ sp.file, ncol = 4)
+    
+    ggsave(width = 45, height = 25, units = "cm", filename = file.path("/home/m/Dropbox/Projects/Phethornis synchro/plots", paste0("raw_rates_20-points_segments_",((x - 1) / ppp) + 1, ".jpeg")), dpi = 150, limitsize = FALSE)
+  }
+)
+
+```
+
+```{r plot 30 row rates, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+raw.points <- read.csv("raw_rates-window_size-30_rows-4_overlap-60.csv", stringsAsFactors = FALSE)
+
+raw.points$species <- ifelse(grepl("yaruqui",raw.points$species), "WWH", "LBH")
+
+raw.points$sp.file <- paste0(raw.points$species,"-", raw.points$file.cut)
+
+# set number of plots per image
+lun <- length(unique(raw.points$sp.file))
+
+# pannels per plot
+ppp <- 20
+lunsq <- seq(1, lun, by = ppp)
+
+
+out <- sapply(lunsq, function(x)
+  {
+  X <- raw.points[raw.points$sp.file %in% na.omit(unique(raw.points$sp.file)[x : (x - 1 + ppp)]), ]
+
+ggplot(X, aes(x = time, y = rate)) + 
+    theme_classic(base_size = 14) +
+    theme(legend.position="none") + 
+  ylim(c(0, 4.5)) +
+  labs(y = "rate (4 s)") +
+  geom_line(data = X, aes(x = time, y = rate, col = code), size = 1.2) +
+  geom_hline(yintercept = 0.4, linetype = 1) +  
+  facet_wrap( ~ sp.file, ncol = 4)
+    
+    ggsave(width = 45, height = 25, units = "cm", filename = file.path("/home/m/Dropbox/Projects/Phethornis synchro/plots", paste0("raw_rates_30_rows-",((x - 1) / ppp) + 1, ".jpeg")), dpi = 150, limitsize = FALSE)
+  }
+)
+
+```
+
+```{r dtw randomization test, message=FALSE,warning=FALSE, echo=FALSE, eval = F, include=F}
+
+raw.points <- read.csv("raw_rates-window_size-30_rows-4_overlap-60.csv", stringsAsFactors = FALSE)
+
+reps <- 10000
+
+dtw.dist <- pblapply(unique(raw.points$file.cut), cl = detectCores() - 1, function(x){
+  
+  sub <- raw.points[raw.points$file.cut == x, ]
+  
+  sub <- sub[order(sub$time), ]
+  
+  obs.dist <- dtw(scale(sub$rate[sub$code == "song"]), scale(sub$rate[sub$code == "wag"]), distance.only = TRUE)$distance
+  
+  rndm <- sapply(1:reps, function(y){
+    
+    sub$rate[sub$code == "song"] <- sample(sub$rate[sub$code == "song"])
+    
+    sub$rate[sub$code == "wag"] <- sample(sub$rate[sub$code == "wag"])
+      
+    obs.dist <- dtw(scale(sub$rate[sub$code == "song"]), scale(sub$rate[sub$code == "wag"]), distance.only = TRUE)$distance
+    
+   return(obs.dist)  
+  })
+  
+return(data.frame(file.cut.sgmnt = x, obs.dist, mean.rndm  = mean(rndm, na.rm = TRUE), p = length(which(rndm[!is.na(rndm)] < obs.dist))/ length(rndm[!is.na(rndm)])))
+})
+
+dtw.rndm <- do.call(rbind, dtw.dist)
+
+# t.test(x = dtw.rndm$obs.dist, y = dtw.rndm$mean.rndm, paired = TRUE, alternative = "less")
+# # 
+# wilcox.test(x = dtw.rndm$obs.dist, y = dtw.rndm$mean.rndm, paired = TRUE, alternative = "less")
+
+dtw.rndm$file <- paste0(sapply(strsplit(as.character(dtw.rndm$file.cut.sgmnt), ".csv", fixed = T), "[", 1), ".csv")
+
+dtw.rndm$cut <- sapply(strsplit(as.character(dtw.rndm$file.cut.sgmnt), ".csv-", fixed = T), "[", 2)
+
+dat <- read.csv("wagging-singing raw data LBH-WWH.csv", stringsAsFactors = FALSE)
+
+dtw.rndm$species <- sapply(dtw.rndm$file, function(x) dat$species[dat$file == x][1])
+
+
+dtw.rndm$synch.score <- (dtw.rndm$obs.dist - dtw.rndm$mean.rndm) / dtw.rndm$mean.rndm
+
+# add english name
+dtw.rndm$sp.english <- as.character(dtw.rndm$species)
+dtw.rndm$sp.english <- ifelse(dtw.rndm$sp.english == "Phaethornis yaruqui", "White-whiskered hermit", "Long-billed hermit")
+dtw.rndm$Bird <- sapply(strsplit(as.character(dtw.rndm$file), ".", fixed = T), "[", 1)
+
+
+# add WWH metadata
+mtdt1 <- read_excel("Predata/WWH_rec_files_p1.xlsx")
+mtdt2 <- read_excel("Predata/WWH_rec_files_p2.xlsx")
+
+mtdt <- rbind(mtdt1, mtdt2)
+
+mtdt$Id_cowlog <- gsub("enrty", "entry", mtdt$Id_cowlog)
+
+dtw.rndm$Bird <- sapply(1:nrow(dtw.rndm), function(x) {
+  if (dtw.rndm$sp.english[x] == "White-whiskered hermit")  return(mtdt$BirdRing[gsub(".csv", "", mtdt$Id_cowlog) == gsub(".csv", "", dtw.rndm$file[x])][1]) else return(dtw.rndm$Bird[x])
+})
+
+dtw.rndm$n <- sapply(1:nrow(dtw.rndm), function(x) 
+  nrow(raw.points[raw.points$file.cut == dtw.rndm$file.cut.sgmnt[x],]))
+
+write.csv(dtw.rndm, "DTW distance randomization 30 row segments.csv", row.names = FALSE)
+
+```
+
+## P value histograms
+
+```{r plots results, message=FALSE,warning=FALSE, echo=FALSE, eval = TRUE}
+
+dtw.rndm <- read.csv("DTW distance randomization 30 row segments.csv")
+
+ann_text <- data.frame(x = 0.1, y = 8.3, lab = c("","0.95"), sp.english = unique(dtw.rndm$sp.english), Bird = NA)
+
+ggplot(data = dtw.rndm, aes(x = p, fill = Bird)) +  
+  facet_wrap(~ sp.english, nrow = 2, strip.position = NULL, scales = "free_y") +
+  geom_histogram(binwidth = 0.1, color = adjustcolor("black", alpha.f = 0.5)) + 
+  theme_classic(base_size = 14) + 
+  labs(x = "P value", y = "Frequency") +
+  geom_vline(xintercept = 0.05, lty = 3, lwd = 1.2) +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c(terrain.colors(n = length(unique(dtw.rndm$Bird[dtw.rndm$species == "Phaethornis longirostris"]))), topo.colors(n = length(unique(dtw.rndm$Bird[dtw.rndm$species != "Phaethornis longirostris"])))))
+```
+
+## Stats
+
+```{r stats, message=FALSE,warning=FALSE, echo=FALSE, eval = TRUE}
+
+## combine p-vales
+# comb.fun <- sumlog
+comb.fun <- sumz
+
+non.dup.dtw <- dtw.rndm[!duplicated(dtw.rndm$Bird), ]
+
+dtw.rndm$p <- ifelse(dtw.rndm$p == 0, 0.0001, dtw.rndm$p)
+
+non.dup.dtw$p <- sapply(non.dup.dtw$Bird, function(x){
+   Y <- dtw.rndm[dtw.rndm$Bird == x, ]
+
+   if (nrow(Y) > 1)  return(comb.fun(Y$p, weights = sqrt(Y$n))$p) else return(Y$p)
+   })
+
+print("Fig legend: Histogram of p values for each species. Colors highlight different individuals")
+
+print("Weighted Z-test combined p-values:")
+
+comb.fun(p = non.dup.dtw$p, weights = sqrt(non.dup.dtw$n))
+
+print("Weighted Z-test combined p-values for Phaethornis yaruqui:")
+
+comb.fun(p = non.dup.dtw$p[non.dup.dtw$species == "Phaethornis yaruqui"], weights = sqrt(non.dup.dtw$n[non.dup.dtw$species == "Phaethornis yaruqui"]))
+
+print("Weighted Z-test combined p-values for Phaethornis longirostris:")
+
+comb.fun(p = non.dup.dtw$p[non.dup.dtw$species != "Phaethornis yaruqui"], weights = sqrt(non.dup.dtw$n[non.dup.dtw$species != "Phaethornis yaruqui"]))
+
+
+```
+
+

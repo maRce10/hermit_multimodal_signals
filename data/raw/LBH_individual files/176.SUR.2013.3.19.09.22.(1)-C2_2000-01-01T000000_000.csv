@@ -1,0 +1,24 @@
+time,code,class
+0.197,voice_start,1
+0.603,voice_start,1
+1.035,voice_start,1
+1.541,voice_start,1
+2.069,voice_start,1
+2.501,voice_start,1
+3.003,voice_start,1
+3.604,voice_start,1
+4.272,voice_start,1
+4.972,voice_start,1
+5.572,voice_start,1
+6.507,voice_start,1
+7.775,voice_start,1
+3.141,tail_up,2
+4.506,tail_up,2
+5.105,tail_up,2
+5.445,tail_up,2
+5.806,tail_up,2
+6.64,tail_up,2
+7.841,tail_up,2
+8.645,interaction start,4
+38.747, interaction end,4
+39.515,END,0
