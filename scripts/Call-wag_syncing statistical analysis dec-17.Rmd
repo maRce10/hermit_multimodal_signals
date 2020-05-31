@@ -9,6 +9,8 @@ output:
     toc_float:
       collapsed: no
       smooth_scroll: no
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r packages,message=FALSE,warning=FALSE,echo=FALSE, eval = T}
@@ -34,7 +36,7 @@ require(y, character.only = T)
 
 ```{r LBH coor graphs, message=FALSE,warning=FALSE,echo=FALSE, eval=TRUE}
 
-lbhfl <- list.files(path = "/home/m/Dropbox/Projects/Phethornis synchro/LBH_individual files")
+lbhfl <- list.files(path = "/data/raw/LBH_individual files")
 
 
 lbhid  <- sapply(strsplit(lbhfl, ".", fixed = T), "[", 1)
